@@ -402,6 +402,22 @@ void OneSixModEditDialog::on_addModBtn_clicked()
 		m_mods->startWatching();
 	}
 }
+void OneSixModEditDialog::on_addJarModBtn_clicked()
+{
+	QMessageBox::information(
+		this, tr("Jar Modding"),
+		tr("So you want to add a mod to a jar?\n"
+		   "This really shouldn't be done any more in 1.6+, and the mod what "
+		   "wants you to do that is stupid.\n"
+		   "MultiMC does currently not support it, here are the options you "
+		   "have:\n"
+		   "* Check if the mod also can be installed in another way. OptiFine "
+		   "can be used both with Forge and as a tweaker mod\n"
+		   "* Go yell at the mod author. If doesn't want to use Forge, he still "
+		   "can make a tweaker mod\n"
+		   "* Implement jar modding and submit a pull request to MultiMC on "
+		   "github\n"));
+}
 void OneSixModEditDialog::on_rmModBtn_clicked()
 {
 	int first, last;

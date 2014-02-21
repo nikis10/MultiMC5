@@ -35,6 +35,7 @@ public:
 private
 slots:
 	void on_addModBtn_clicked();
+	void on_addJarModBtn_clicked();
 	void on_rmModBtn_clicked();
 	void on_viewModBtn_clicked();
 

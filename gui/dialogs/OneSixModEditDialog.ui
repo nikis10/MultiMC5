@@ -190,6 +190,13 @@
             </widget>
            </item>
            <item>
+            <widget class="QPushButton" name="addJarModBtn">
+             <property name="text">
+              <string>Add Jar Mod</string>
+             </property>
+            </widget>
+           </item>
+           <item>
             <widget class="QPushButton" name="rmModBtn">
              <property name="text">
               <string>&amp;Remove</string>
