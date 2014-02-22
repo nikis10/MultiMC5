@@ -879,7 +879,7 @@ void MainWindow::on_actionChangeInstGroup_triggered()
 
 	bool ok = false;
 	QString name(m_selectedInstance->group());
-	auto groups = MMC->instances()->getGroups();
+	auto groups = MMC->instances()->getGroupNameList();
 	groups.insert(0, "");
 	groups.sort(Qt::CaseInsensitive);
 	int foo = groups.indexOf(name);

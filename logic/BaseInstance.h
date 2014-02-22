@@ -183,7 +183,7 @@ signals:
 	/*!
 	 * \brief Signal emitted when groups are affected in any way
 	 */
-	void groupChanged();
+	void groupChanged(QString instId, QString oldGroupName , QString groupName);
 	/*!
 	 * \brief The instance just got nuked. Hurray!
 	 */

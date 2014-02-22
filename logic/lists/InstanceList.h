@@ -38,6 +38,17 @@ struct FTBRecord
 	QString templateDir;
 };
 
+// a group entry. The instance list has a map from group ID to InstanceGroup
+struct InstanceGroup
+{
+	// hidden means the items are hidden in the view
+	bool hidden = false;
+	// a synthetic group won't be assignable from the GUI
+	bool synthetic = true;
+	// instances in this group (their IDs).
+	QSet<QString> entry_ids;
+};
+
 class InstanceList : public QAbstractListModel
 {
 	Q_OBJECT
@@ -87,7 +98,6 @@ public:
 	{
 		return m_instances.at(i);
 	}
-	;
 
 	/*!
 	 * \brief Get the count of loaded instances
@@ -96,7 +106,6 @@ public:
 	{
 		return m_instances.count();
 	}
-	;
 
 	/// Clear all instances. Triggers notifications.
 	void clear();
@@ -109,8 +118,7 @@ public:
 
 	QModelIndex getInstanceIndexById(const QString &id) const;
 
-	// FIXME: instead of iterating through all instances and forming a set, keep the set around
-	QStringList getGroups();
+	QStringList getGroupNameList();
 signals:
 	void dataIsInvalid();
 
@@ -127,7 +135,7 @@ private
 slots:
 	void propertiesChanged(BaseInstance *inst);
 	void instanceNuked(BaseInstance *inst);
-	void groupChanged();
+	void groupChanged(QString instId, QString oldGroupName , QString groupName);
 
 private:
 	int getInstIndex(BaseInstance *inst) const;
@@ -138,7 +146,8 @@ private:
 protected:
 	QString m_instDir;
 	QList<InstancePtr> m_instances;
-	QSet<QString> m_groups;
+	// map from group name to the group structure
+	QMap<QString, InstanceGroup> m_groups;
 };
 
 class InstanceProxyModel : public GroupedProxyModel

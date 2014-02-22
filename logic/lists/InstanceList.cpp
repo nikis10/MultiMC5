@@ -124,15 +124,32 @@ Qt::ItemFlags InstanceList::flags(const QModelIndex &index) const
 	return f;
 }
 
-void InstanceList::groupChanged()
+void InstanceList::groupChanged(QString instId, QString oldGroupName, QString groupName)
 {
+	if(m_groups.contains(oldGroupName))
+	{
+		auto & group = m_groups[oldGroupName];
+		group.entry_ids.remove(instId);
+	}
+	if(m_groups.contains(groupName))
+	{
+		m_groups[groupName].entry_ids.insert(instId);
+	}
+	else
+	{
+		InstanceGroup create;
+		create.hidden = false;
+		create.synthetic = false;
+		create.entry_ids.insert(instId);
+		m_groups[groupName] = create;
+	}
 	// save the groups. save all of them.
 	saveGroupList();
 }
 
-QStringList InstanceList::getGroups()
+QStringList InstanceList::getGroupNameList()
 {
-	return m_groups.toList();
+	return m_groups.keys();
 }
 
 void InstanceList::saveGroupList()
@@ -148,44 +165,34 @@ void InstanceList::saveGroupList()
 		return;
 	}
 	QTextStream out(&groupFile);
-	QMap<QString, QSet<QString>> groupMap;
-	for (auto instance : m_instances)
-	{
-		QString id = instance->id();
-		QString group = instance->group();
-		if (group.isEmpty())
-			continue;
 
-		// keep a list/set of groups for choosing
-		m_groups.insert(group);
-
-		if (!groupMap.count(group))
-		{
-			QSet<QString> set;
-			set.insert(id);
-			groupMap[group] = set;
-		}
-		else
-		{
-			QSet<QString> &set = groupMap[group];
-			set.insert(id);
-		}
-	}
 	QJsonObject toplevel;
 	toplevel.insert("formatVersion", QJsonValue(QString("1")));
 	QJsonObject groupsArr;
-	for (auto iter = groupMap.begin(); iter != groupMap.end(); iter++)
+	for (auto iter = m_groups.begin(); iter != m_groups.end(); iter++)
 	{
-		auto list = iter.value();
+		auto group = iter.value();
 		auto name = iter.key();
 		QJsonObject groupObj;
 		QJsonArray instanceArr;
-		groupObj.insert("hidden", QJsonValue(QString("false")));
-		for (auto item : list)
+		if(group.hidden)
+			groupObj.insert("hidden", QJsonValue(QString("true")));
+		else
+			groupObj.insert("hidden", QJsonValue(QString("false")));
+		if(!group.synthetic)
 		{
-			instanceArr.append(QJsonValue(item));
+			bool anyInstances = false;
+			for (auto item : group.entry_ids)
+			{
+				if(!getInstanceById(item))
+					continue;
+				instanceArr.append(QJsonValue(item));
+				anyInstances = true;
+			}
+			if(!anyInstances)
+				continue;
+			groupObj.insert("instances", instanceArr);
 		}
-		groupObj.insert("instances", instanceArr);
 		groupsArr.insert(name, groupObj);
 	}
 	toplevel.insert("groups", groupsArr);
@@ -196,6 +203,7 @@ void InstanceList::saveGroupList()
 
 void InstanceList::loadGroupList(QMap<QString, QString> &groupMap)
 {
+	m_groups.clear();
 	QString groupFileName = m_instDir + "/instgroups.json";
 
 	// if there's no group file, fail
@@ -274,18 +282,26 @@ void InstanceList::loadGroupList(QMap<QString, QString> &groupMap)
 							   .toUtf8();
 			continue;
 		}
-
-		// keep a list/set of groups for choosing
-		m_groups.insert(groupName);
+		InstanceGroup g;
+		g.hidden = groupObj.value("hidden").toBool(false);
+		g.synthetic = false;
 
 		// Iterate through the list of instances in the group.
 		QJsonArray instancesArray = groupObj.value("instances").toArray();
 
-		for (QJsonArray::iterator iter2 = instancesArray.begin(); iter2 != instancesArray.end();
-			 iter2++)
+		for (auto instance : instancesArray)
 		{
-			groupMap[(*iter2).toString()] = groupName;
+			groupMap[instance.toString()] = groupName;
+			if (instance.isString())
+			{
+				g.entry_ids.insert(instance.toString());
+				continue;
+			}
+			QLOG_WARN() << QString("Unknown element while processing instance groups.") +
+							   instance.type();
 		}
+		// keep a list/set of groups for choosing
+		m_groups[groupName] = g;
 	}
 }
 
@@ -336,7 +352,7 @@ QList<FTBRecord> InstanceList::discoverFTBInstances()
 					if (!test.exists())
 						continue;
 					record.name = attrs.value("name").toString();
-					if(record.name.contains("voxel", Qt::CaseInsensitive))
+					if (record.name.contains("voxel", Qt::CaseInsensitive))
 						continue;
 					record.logo = attrs.value("logo").toString();
 					record.mcVersion = attrs.value("mcVersion").toString();
@@ -401,7 +417,7 @@ void InstanceList::loadFTBInstances(QMap<QString, QString> &groupMap,
 			instPtr->setIconKey(iconKey);
 			instPtr->setIntendedVersionId(record.mcVersion);
 			instPtr->setNotes(record.description);
-			if(!continueProcessInstance(instPtr, error, record.instanceDir, groupMap))
+			if (!continueProcessInstance(instPtr, error, record.instanceDir, groupMap))
 				continue;
 			tempList.append(InstancePtr(instPtr));
 		}
@@ -418,7 +434,7 @@ void InstanceList::loadFTBInstances(QMap<QString, QString> &groupMap,
 			if (instPtr->intendedVersionId() != record.mcVersion)
 				instPtr->setIntendedVersionId(record.mcVersion);
 			instPtr->setNotes(record.description);
-			if(!continueProcessInstance(instPtr, error, record.instanceDir, groupMap))
+			if (!continueProcessInstance(instPtr, error, record.instanceDir, groupMap))
 				continue;
 			tempList.append(InstancePtr(instPtr));
 		}
@@ -443,7 +459,7 @@ InstanceList::InstListError InstanceList::loadList()
 			QLOG_INFO() << "Loading MultiMC instance from " << subDir;
 			BaseInstance *instPtr = NULL;
 			auto error = InstanceFactory::get().loadInstance(instPtr, subDir);
-			if(!continueProcessInstance(instPtr, error, subDir, groupMap))
+			if (!continueProcessInstance(instPtr, error, subDir, groupMap))
 				continue;
 			tempList.append(InstancePtr(instPtr));
 		}
@@ -455,12 +471,12 @@ InstanceList::InstListError InstanceList::loadList()
 	}
 	beginResetModel();
 	m_instances.clear();
-	for(auto inst: tempList)
+	for (auto inst : tempList)
 	{
 		inst->setParent(this);
 		connect(inst.get(), SIGNAL(propertiesChanged(BaseInstance *)), this,
 				SLOT(propertiesChanged(BaseInstance *)));
-		connect(inst.get(), SIGNAL(groupChanged()), this, SLOT(groupChanged()));
+		connect(inst.get(), &BaseInstance::groupChanged, this, &InstanceList::groupChanged);
 		connect(inst.get(), SIGNAL(nuked(BaseInstance *)), this,
 				SLOT(instanceNuked(BaseInstance *)));
 		m_instances.append(inst);
@@ -494,7 +510,7 @@ int InstanceList::add(InstancePtr t)
 	t->setParent(this);
 	connect(t.get(), SIGNAL(propertiesChanged(BaseInstance *)), this,
 			SLOT(propertiesChanged(BaseInstance *)));
-	connect(t.get(), SIGNAL(groupChanged()), this, SLOT(groupChanged()));
+	connect(t.get(), &BaseInstance::groupChanged, this, &InstanceList::groupChanged);
 	connect(t.get(), SIGNAL(nuked(BaseInstance *)), this, SLOT(instanceNuked(BaseInstance *)));
 	endInsertRows();
 	return count() - 1;

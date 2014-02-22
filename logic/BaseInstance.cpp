@@ -211,8 +211,10 @@ void BaseInstance::setGroupInitial(QString val)
 
 void BaseInstance::setGroupPost(QString val)
 {
+	I_D(BaseInstance);
+	auto oldGroup = d->m_group;
 	setGroupInitial(val);
-	emit groupChanged();
+	emit groupChanged(id(),oldGroup, val);
 }
 
 QString BaseInstance::group() const
